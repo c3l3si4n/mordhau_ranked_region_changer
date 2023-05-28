@@ -7,6 +7,8 @@ import dns.resolver
 import pyuac
 import ctypes
 from tkinter import simpledialog
+from graceful_shutdown import ShutdownProtection
+from graceful_shutdown import configure_shutdown_manager
 
 dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
 dns.resolver.default_resolver.nameservers = ['1.1.1.1']
@@ -44,7 +46,6 @@ def del_hosts():
         if "12D56.playfabapi.com" in line:
             continue
         new_hosts_file += "\n" + line.strip()
-    print(new_hosts_file)
     with open("c:/Windows/System32/Drivers/etc/hosts", "w") as f:
         f.seek(0)
         f.write(new_hosts_file)
@@ -58,17 +59,30 @@ async def start_proxy(host, port):
 
     )
     master.addons.add(ChangeRegion())
-    MessageBox(None, 'The ranked region changer is now running. You may now close this window and open MORDHAU.' , 'MORDHAU: Ranked Region Changer', 0)
+    MessageBox(None, 'The ranked region changer is now running. You may now click OK, then open MORDHAU.' , 'MORDHAU: Ranked Region Changer', 0)
+
+    print("""\n\n\n\n\n
+==========================
+Press Ctrl+C to gracefully shutdown the application.
+==========================
+""")
     await master.run()
+
 
     return master
 
 
+
+
 if __name__ == '__main__':
+    configure_shutdown_manager(before_hup=del_hosts, before_termination=del_hosts)
+
     add_hosts()
     if not pyuac.isUserAdmin():
         pyuac.runAsAdmin()
-    try:
-        asyncio.run(start_proxy("127.0.0.1", 443))
-    except KeyboardInterrupt as e:
-        del_hosts()
+    with ShutdownProtection(1) as protected_block:
+        try:
+            asyncio.run(start_proxy("127.0.0.1", 443))
+        except (SystemExit, KeyboardInterrupt) as e:
+            print("Cleanly exiting...")
+            del_hosts()
